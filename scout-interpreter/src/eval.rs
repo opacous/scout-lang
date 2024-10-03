@@ -102,6 +102,9 @@ pub enum EvalError {
     BrowserError(fantoccini::error::CmdError),
     OSError(String),
     LockError,
+    InvalidRegexPattern(String),
+    InvalidJQQuery(String),
+    InvalidJSON(String),
 }
 
 pub async fn eval(

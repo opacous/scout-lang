@@ -51,6 +51,8 @@ pub enum BuiltinKind {
     ToJson,
     HttpRequest,
     SetViewport,
+    Regex,
+    JQ,
 }
 
 impl BuiltinKind {
@@ -79,6 +81,8 @@ impl BuiltinKind {
             "toJson" => Some(ToJson),
             "httpRequest" => Some(HttpRequest),
             "setViewport" => Some(SetViewport),
+            "regex" => Some(Regex),
+            "jq" => Some(JQ),
             _ => None,
         }
     }
@@ -382,6 +386,65 @@ impl BuiltinKind {
                         }
                     }
                     _ => Err(EvalError::InvalidFnParams),
+                }
+            }
+            Regex => {
+                assert_param_len!(args, 2);
+                // TODO: expand this into a match statement
+                match (&*args[0], &*args[1]) {
+                    (Object::Str(input), Object::Str(pattern)) => {
+                        match regex::Regex::new(pattern) {
+                            Ok(regex) => {
+                                let captures = regex.captures(input);
+                                match captures {
+                                    Some(captures) => {
+                                        let groups = captures
+                                            .iter()
+                                            .map(|group| match group {
+                                                Some(group) => Object::Str(group.as_str().to_string()),
+                                                None => Object::Null,
+                                            })
+                                            .collect::<Vec<_>>();
+                                        Ok(Arc::new(Object::List(Mutex::new(
+                                            groups.iter().map(|x| Arc::new(x.clone())).collect(),
+                                        ))))
+                                    }
+                                    None => Ok(Arc::new(Object::Null)),
+                                }
+                            }
+                            Err(err) => Err(EvalError::InvalidRegexPattern(err.to_string())),
+                        }
+                    }
+                    (Object::List(list_proper), Object::Str(sub)) => {
+                        todo!()
+                    }
+                    (_, _) => {
+                        Err(EvalError::InvalidFnParams)
+                    }
+                }
+            }
+            regex_match => {
+                // NOTE: This todo is meant for a boolean output like Contains but with regex
+                todo!()
+            }
+            JQ => {
+                assert_param_len!(args, 2);
+                if let (Object::Str(query), Object::Str(input)) = (&*args[0], &*args[1]) {
+                    match serde_json::from_str(input) {
+                        Ok(json) => {
+                            let value = todo!(); // TODO: Have not figure out jaq api
+                            match value {
+                                Ok(value) => {
+                                    let obj = json_to_obj(&value);
+                                    Ok(obj)
+                                }
+                                Err(err) => Err(EvalError::InvalidJQQuery(err.to_string())),
+                            }
+                        }
+                        Err(err) => Err(EvalError::InvalidJSON(err.to_string())),
+                    }
+                } else {
+                    Err(EvalError::InvalidFnParams)
                 }
             }
         }
