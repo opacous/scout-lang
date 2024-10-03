@@ -52,6 +52,7 @@ pub enum BuiltinKind {
     HttpRequest,
     SetViewport,
     Regex,
+    RegexMatch,
     JQ,
 }
 
@@ -82,6 +83,7 @@ impl BuiltinKind {
             "httpRequest" => Some(HttpRequest),
             "setViewport" => Some(SetViewport),
             "regex" => Some(Regex),
+            "regexMatch" => Some(RegexMatch),
             "jq" => Some(JQ),
             _ => None,
         }
@@ -390,7 +392,6 @@ impl BuiltinKind {
             }
             Regex => {
                 assert_param_len!(args, 2);
-                // TODO: expand this into a match statement
                 match (&*args[0], &*args[1]) {
                     (Object::Str(input), Object::Str(pattern)) => {
                         match regex::Regex::new(pattern) {
@@ -415,30 +416,58 @@ impl BuiltinKind {
                             Err(err) => Err(EvalError::InvalidRegexPattern(err.to_string())),
                         }
                     }
-                    (Object::List(list_proper), Object::Str(sub)) => {
-                        todo!()
+                    (Object::List(list), Object::Str(pattern)) => {
+                        match regex::Regex::new(pattern) {
+                            Ok(regex) => {
+                                let mut results = Vec::new();
+                                let inner = list.lock().await;
+                                for item in inner.iter() {
+                                    if let Object::Str(input) = &**item {
+                                        if regex.is_match(input) {
+                                            results.push(item.clone());
+                                        }
+                                    }
+                                }
+                                Ok(Arc::new(Object::List(Mutex::new(results))))
+                            }
+                            Err(err) => Err(EvalError::InvalidRegexPattern(err.to_string())),
+                        }
                     }
                     (_, _) => {
                         Err(EvalError::InvalidFnParams)
                     }
                 }
             }
-            regex_match => {
-                // NOTE: This todo is meant for a boolean output like Contains but with regex
-                todo!()
+            RegexMatch => {
+                assert_param_len!(args, 2);
+                match (&*args[0], &*args[1]) {
+                    (Object::Str(input), Object::Str(pattern)) => {
+                        match regex::Regex::new(pattern) {
+                            Ok(regex) => {
+                                let is_match = regex.is_match(input);
+                                Ok(Arc::new(Object::Boolean(is_match)))
+                            }
+                            Err(err) => Err(EvalError::InvalidRegexPattern(err.to_string())),
+                        }
+                    }
+                    (_, _) => Err(EvalError::InvalidFnParams),
+                }
             }
             JQ => {
                 assert_param_len!(args, 2);
                 if let (Object::Str(query), Object::Str(input)) = (&*args[0], &*args[1]) {
                     match serde_json::from_str(input) {
                         Ok(json) => {
-                            let value = todo!(); // TODO: Have not figure out jaq api
-                            match value {
-                                Ok(value) => {
-                                    let obj = json_to_obj(&value);
+                            let filter = jaq_core::parse::parse(query, jaq_core::parse::main()).map_err(|e| EvalError::InvalidJQQuery(e.to_string()))?;
+                            let mut inputs = vec![json];
+                            let mut out = Vec::new();
+                            jaq_core::run::run(filter, &[], &mut inputs, &mut out).map_err(|e| EvalError::InvalidJQQuery(e.to_string()))?;
+                            match out.get(0) {
+                                Some(value) => {
+                                    let obj = json_to_obj(value);
                                     Ok(obj)
                                 }
-                                Err(err) => Err(EvalError::InvalidJQQuery(err.to_string())),
+                                None => Ok(Arc::new(Object::Null)),
                             }
                         }
                         Err(err) => Err(EvalError::InvalidJSON(err.to_string())),

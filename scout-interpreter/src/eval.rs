@@ -54,9 +54,15 @@ impl ScrapeResults {
             Some(Value::Array(v)) => {
                 v.push(Value::from(res));
             }
-            // This should never happen since `add_results` is the only way to
+            // This should never happen since `add_result` is the only way to
             // insert to the map.
-            _ => panic!("results was not a vec type"),
+            Some(_) => {
+                log::error!("Unexpected type in results map for URL: {}", url);
+                self.results.insert(url.to_owned(), vec![res].into());
+            }
+            None => {
+                self.results.insert(url.to_owned(), vec![res].into());
+            }
         }
     }
 
