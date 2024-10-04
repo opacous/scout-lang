@@ -1,5 +1,3 @@
-use std::{collections::HashMap, env, str::FromStr, sync::Arc, thread::sleep, time::Duration};
-
 use fantoccini::{
     actions::{InputSource, KeyAction, KeyActions},
     cookies::Cookie,
@@ -13,6 +11,7 @@ use reqwest::{
 };
 use scout_parser::ast::Identifier;
 use serde_json::Value;
+use std::{collections::HashMap, env, str::FromStr, sync::Arc, thread::sleep, time::Duration};
 
 use crate::{
     eval::{EvalError, EvalResult, ScrapeResultsPtr},
@@ -41,6 +40,7 @@ pub enum BuiltinKind {
     Type,
     KeyPress,
     Number,
+    Stringify,
     Url,
     Sleep,
     IsWhitespace,
@@ -259,6 +259,10 @@ impl BuiltinKind {
                     ))
                 }
             }
+            Stringify => {
+                assert_param_len!(args, 1);
+                todo!()
+            }
             Args => {
                 let env_args = env::args().collect::<Vec<String>>();
                 let mut out = Vec::new();
@@ -402,13 +406,13 @@ impl BuiltinKind {
                                         let groups = captures
                                             .iter()
                                             .map(|group| match group {
-                                                Some(group) => Object::Str(group.as_str().to_string()),
-                                                None => Object::Null,
+                                                Some(group) => Arc::new(Object::Str(
+                                                    group.as_str().to_string(),
+                                                )),
+                                                None => Arc::new(Object::Null),
                                             })
                                             .collect::<Vec<_>>();
-                                        Ok(Arc::new(Object::List(Mutex::new(
-                                            groups.iter().map(|x| Arc::new(x.clone())).collect(),
-                                        ))))
+                                        Ok(Arc::new(Object::List(Mutex::new(groups))))
                                     }
                                     None => Ok(Arc::new(Object::Null)),
                                 }
@@ -433,9 +437,7 @@ impl BuiltinKind {
                             Err(err) => Err(EvalError::InvalidRegexPattern(err.to_string())),
                         }
                     }
-                    (_, _) => {
-                        Err(EvalError::InvalidFnParams)
-                    }
+                    (_, _) => Err(EvalError::InvalidFnParams),
                 }
             }
             RegexMatch => {
@@ -455,20 +457,12 @@ impl BuiltinKind {
             }
             JQ => {
                 assert_param_len!(args, 2);
-                if let (Object::Str(query), Object::Str(input)) = (&*args[0], &*args[1]) {
+                if let (Object::Str(input), Object::Str(query)) = (&*args[0], &*args[1]) {
                     match serde_json::from_str(input) {
                         Ok(json) => {
-                            let filter = jaq_core::parse::parse(query, jaq_core::parse::main()).map_err(|e| EvalError::InvalidJQQuery(e.to_string()))?;
-                            let mut inputs = vec![json];
-                            let mut out = Vec::new();
-                            jaq_core::run::run(filter, &[], &mut inputs, &mut out).map_err(|e| EvalError::InvalidJQQuery(e.to_string()))?;
-                            match out.get(0) {
-                                Some(value) => {
-                                    let obj = json_to_obj(value);
-                                    Ok(obj)
-                                }
-                                None => Ok(Arc::new(Object::Null)),
-                            }
+                            let filter = jq_parse(query, json)
+                                .map_err(|e| EvalError::InvalidJQQuery(format!("{:?}", e)))?;
+                            todo!()
                         }
                         Err(err) => Err(EvalError::InvalidJSON(err.to_string())),
                     }
@@ -508,4 +502,36 @@ impl From<reqwest::Error> for EvalError {
     fn from(value: reqwest::Error) -> Self {
         EvalError::HTTPError(value)
     }
+}
+
+// -- JQ Helper --
+use jaq_core::{load, Native};
+use jaq_json::Val;
+
+fn jq_parse(query: &str, input: Value) -> Result<Object, EvalError> {
+    // todo: Use the jaq_core to write a parser with the jaq std
+    todo!()
+}
+
+type JaqFilter = jaq_core::Filter<Native<Val>>;
+fn parse(vars: &[String]) -> Result<(Vec<Val>, JaqFilter), Vec<FileReports>> {
+    use jaq_core::compile::Compiler;
+
+    let vars: Vec<_> = vars.iter().map(|v| format!("${v}")).collect();
+
+    let mut vals = Vec::new();
+
+    let compiler = Compiler::default()
+        .with_funs(jaq_std::funs().chain(jaq_json::funs()))
+        .with_global_vars(vars.iter().map(|v| &**v));
+    let filter = compiler.compile(vec![]).unwrap(); // No external module
+    Ok((vals, filter))
+}
+
+type FileReports = (load::File<String>, Vec<Report>);
+
+#[derive(Debug)]
+struct Report {
+    message: String,
+    labels: Vec<core::ops::Range<usize>>,
 }
