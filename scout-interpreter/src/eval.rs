@@ -56,13 +56,7 @@ impl ScrapeResults {
             }
             // This should never happen since `add_result` is the only way to
             // insert to the map.
-            Some(_) => {
-                log::error!("Unexpected type in results map for URL: {}", url);
-                self.results.insert(url.to_owned(), vec![res].into());
-            }
-            None => {
-                self.results.insert(url.to_owned(), vec![res].into());
-            }
+            _ => panic!()
         }
     }
 

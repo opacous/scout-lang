@@ -63,6 +63,7 @@ impl BuiltinKind {
             "isWhitespace" => Some(IsWhitespace),
             "url" => Some(Url),
             "number" => Some(Number),
+            "str" => Some(Stringify),
             "args" => Some(Args),
             "print" => Some(Print),
             "textContent" => Some(TextContent),

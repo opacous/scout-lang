@@ -18,7 +18,7 @@ pub async fn run_repl(interpreter: &Interpreter) -> Result<(), Box<dyn std::erro
 
                 match interpreter.eval(&line).await {
                     Ok(o) => println!("{}", o.to_display().await),
-                    Err(e) => println!("Interpeter error: {:?}", e),
+                    Err(e) => println!("Interpreter error: {:?}", e),
                 }
             }
             Err(ReadlineError::Interrupted) => {
