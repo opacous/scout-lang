@@ -261,7 +261,8 @@ impl BuiltinKind {
             }
             Stringify => {
                 assert_param_len!(args, 1);
-                todo!()
+                let stringified = args[0].to_display().await;
+                Ok(Arc::new(Object::Str(stringified)))
             }
             Args => {
                 let env_args = env::args().collect::<Vec<String>>();
