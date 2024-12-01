@@ -66,6 +66,10 @@ impl Lexer {
                     }
                     _ => Token::new(Bang, '!'.to_string()),
                 },
+                '\'' => {
+                    let literal = self.read_string_lit();
+                    Token::new(Str, literal)
+                }
                 '"' => {
                     let literal = self.read_string();
                     Token::new(Str, literal)
@@ -160,6 +164,31 @@ impl Lexer {
                 }
                 Some(_) => {
                     i.push(*self.next().unwrap());
+                }
+                None => {
+                    break;
+                }
+            };
+        }
+        i.iter().collect()
+    }
+    fn read_string_lit(&mut self) -> String {
+        let mut i: Vec<char> = Vec::new();
+        loop {
+            match self.peek() {
+                Some(c) if *c == '\'' => {
+                    let _ = self.next();
+                    break;
+                }
+                Some(c) => {
+                    if *c == '\\' {
+                        i.push(*self.next().unwrap());
+                        if let Some(next_char) = self.next() {
+                            i.push(*next_char);
+                        }
+                    } else {
+                        i.push(*self.next().unwrap());
+                    }
                 }
                 None => {
                     break;

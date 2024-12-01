@@ -99,6 +99,19 @@ impl BuiltinKind {
         use BuiltinKind::*;
         match self {
             HttpRequest => {
+                // Makes an HTTP request and returns the response.
+
+                // # Examples
+
+                // ```
+                // // GET request
+                // httpRequest("GET", "https://dummyjson.com/c/3029-d29f-4014-9fb4", null, {}, "json")
+
+                // // POST request with JSON body and custom headers
+                // body = "{ key: value }"
+                // headers = { Content-Type: application/json }
+                // response = httpRequest("POST", "https://api.example.com", body, headers, "json")
+
                 if args.len() < 5 {
                     return Err(EvalError::InvalidFnParams);
                 }
@@ -112,12 +125,19 @@ impl BuiltinKind {
 
                         // Check for an optional body
                         if args[2].is_truthy().await {
-                            let body = args[2].to_string();
+                            // TODO: This is a special behaviour to skip all the escaping logic that makes `{something: here}` look like
+                            // `\{something\:here\}`, but this is too bespoke to keep around
+                            let body: String = match &*args[2] {
+                                Object::Str(inner) => inner.clone(),
+                                _ => args[2].to_string(),
+                            };
+                            println!("this is what the body looks like : {:?}", body);
                             req_builder = req_builder.body(body);
                         }
 
                         // Check for an optional headers map
                         if let Object::Map(map) = &*args[3] {
+                            println!("There is a optional Header! {:?}", map);
                             let mut headers = HeaderMap::default();
                             let inner = map.lock().await;
                             for (k, v) in inner.iter() {
@@ -131,7 +151,35 @@ impl BuiltinKind {
                                 );
                             }
                             req_builder = req_builder.headers(headers);
+                        } else if let Object::Str(s) = &*args[3] {
+                            let headers: HashMap<String, String> = match serde_json::from_str(s) {
+                                Ok(json) => json,
+                                Err(_) => {
+                                    // Fallback to the original parsing method if JSON parsing fails
+                                    s.split(',')
+                                        .filter_map(|pair| {
+                                            let mut parts = pair.splitn(2, ':');
+                                            Some((
+                                                parts.next()?.trim().to_string(),
+                                                parts.next()?.trim().to_string(),
+                                            ))
+                                        })
+                                        .collect()
+                                }
+                            };
+
+                            println!("There is an optional Header! {:?}", headers);
+                            let mut header_map = HeaderMap::new();
+                            for (key, value) in headers {
+                                if let (Ok(name), Ok(val)) =
+                                    (HeaderName::from_str(&key), HeaderValue::from_str(&value))
+                                {
+                                    header_map.insert(name, val);
+                                }
+                            }
+                            req_builder = req_builder.headers(header_map);
                         }
+
                         let res = req_builder.send().await?;
                         let status = Object::Number(res.status().as_u16() as f64);
                         let url = Object::Str(res.url().to_string());
@@ -462,7 +510,7 @@ impl BuiltinKind {
                 if let (Object::Str(input), Object::Str(query)) = (&*args[0], &*args[1]) {
                     match serde_json::from_str(input) {
                         Ok(json) => {
-                            let filter = jq_parse(query, json)
+                            let _filter = jq_parse(query, json)
                                 .map_err(|e| EvalError::InvalidJQQuery(format!("{:?}", e)))?;
                             todo!()
                         }
@@ -506,34 +554,8 @@ impl From<reqwest::Error> for EvalError {
     }
 }
 
-// -- JQ Helper --
-use jaq_core::{load, Native};
-use jaq_json::Val;
-
-fn jq_parse(query: &str, input: Value) -> Result<Object, EvalError> {
+fn jq_parse(_query: &str, _input: Value) -> Result<Object, EvalError> {
     // todo: Use the jaq_core to write a parser with the jaq std
     todo!()
 }
 
-type JaqFilter = jaq_core::Filter<Native<Val>>;
-fn parse(vars: &[String]) -> Result<(Vec<Val>, JaqFilter), Vec<FileReports>> {
-    use jaq_core::compile::Compiler;
-
-    let vars: Vec<_> = vars.iter().map(|v| format!("${v}")).collect();
-
-    let mut vals = Vec::new();
-
-    let compiler = Compiler::default()
-        .with_funs(jaq_std::funs().chain(jaq_json::funs()))
-        .with_global_vars(vars.iter().map(|v| &**v));
-    let filter = compiler.compile(vec![]).unwrap(); // No external module
-    Ok((vals, filter))
-}
-
-type FileReports = (load::File<String>, Vec<Report>);
-
-#[derive(Debug)]
-struct Report {
-    message: String,
-    labels: Vec<core::ops::Range<usize>>,
-}

@@ -1,5 +1,11 @@
 [workspace]
-members = [ "scout-chumsky","scout-interpreter", "scout-json", "scout-lexer", "scout-logos-lexer", "scout-parser", "scout-worker"]
+members = [
+    "scout-interpreter",
+    "scout-json",
+    "scout-lexer",
+    "scout-parser",
+    "scout-worker",
+]
 
 # Config for 'cargo dist'
 [workspace.metadata.dist]
@@ -10,7 +16,12 @@ ci = "github"
 # The installers to generate for each app
 installers = ["shell"]
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+targets = [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+]
 # Publish jobs to run in CI
 pr-run-mode = "plan"
 # Whether to install an updater program
@@ -31,11 +42,11 @@ description = "A web crawling programming language"
 homepage = "https://scout-lang.netlify.app"
 license = "MIT OR Apache-2.0"
 keywords = [
-  "programming-language",
-  "web-crawling",
-  "web-scraping",
-  "crawling",
-  "scraping",
+    "programming-language",
+    "web-crawling",
+    "web-scraping",
+    "crawling",
+    "scraping",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

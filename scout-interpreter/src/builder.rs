@@ -76,6 +76,32 @@ async fn new_crawler(env_vars: &EnvVars, port: usize) -> Result<fantoccini::Clie
     Ok(crawler)
 }
 
+#[allow(dead_code)]
+async fn new_http_client(
+    env_vars: &EnvVars,
+    port: usize,
+) -> Result<fantoccini::Client, BuilderError> {
+    let mut caps = serde_json::map::Map::new();
+    if !env_vars.scout_debug {
+        let opts = serde_json::json!({ "args": ["--headless"] });
+        caps.insert("moz:firefoxOptions".into(), opts);
+    }
+    if let Some(proxy) = env_vars.scout_proxy.clone() {
+        let opt = serde_json::json!({
+            "proxyType": "manual",
+            "httpProxy": proxy,
+        });
+        caps.insert("proxy".into(), opt);
+    }
+    let conn_url = format!("http://localhost:{}", port);
+    let crawler = fantoccini::ClientBuilder::native()
+        .capabilities(caps)
+        .connect(&conn_url)
+        .await
+        .map_err(|e| BuilderError::BrowserStartup(e.to_string()))?;
+    Ok(crawler)
+}
+
 impl std::fmt::Display for BuilderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
