@@ -258,7 +258,7 @@ fn eval_statement<'a>(
             }
             StmtKind::Screenshot(path) => {
                 let png = crawler.screenshot().await?;
-                let img = image::ImageReader::new(std::io::Cursor::new(png))
+                let img = image::io::Reader::new(std::io::Cursor::new(png))
                     .with_guessed_format()
                     .map_err(|_| EvalError::ScreenshotError)?
                     .decode()?;

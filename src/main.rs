@@ -3,6 +3,10 @@ use std::{env, fs};
 use repl::run_repl;
 use scout_interpreter::{builder::InterpreterBuilder, Interpreter};
 
+pub use scout_interpreter;
+pub use scout_parser;
+pub use scout_lexer;
+
 mod repl;
 
 async fn run(
